@@ -99,9 +99,11 @@
   .card .info-row b{color:var(--text);font-weight:600}
 
   /* stepper */
-  .stepper{display:flex;align-items:center;margin-bottom:6px;overflow-x:auto;padding-bottom:4px}
-  .stepper::-webkit-scrollbar{height:3px}
-  .stepper::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  /* stepper — 自动换行，无滚动条 */
+  .stepper{display:flex;flex-direction:column;margin-bottom:6px;gap:10px}
+  .stepper-row{display:flex;align-items:center;gap:0}
+  
+  
   .step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 auto;width:44px}
   .step .dot{width:20px;height:20px;border-radius:50%;background:var(--bg-input);border:2px solid var(--text-3);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-3);font-weight:700}
   .step .nm{font-size:10px;color:var(--text-3);white-space:nowrap}
@@ -109,7 +111,8 @@
   .step.done .nm{color:var(--text-2)}
   .step.current .dot{background:var(--amber);border-color:var(--amber);color:#3a2c00;width:22px;height:22px;box-shadow:0 0 8px rgba(255,193,7,.4)}
   .step.current .nm{color:var(--amber);font-weight:700}
-  .bar{min-width:16px;flex:1;height:2px;background:var(--bg-input);border-radius:2px}
+  /* 连接线 */
+  .bar{min-width:12px;flex:1 0 12px;height:2px;background:var(--bg-input);border-radius:2px}
   .bar.fill{background:linear-gradient(90deg,var(--accent),var(--accent))}
 
   /* current stage note on card */
@@ -611,13 +614,27 @@ function renderGrid() {
     const catClass = d.cat === "进行中" ? "active" : "done";
     const pa = d.partyA || "—", pb = d.partyB || "—";
 
-    // Stepper
-    const steps = stages.map((s, i) => {
-      const st = stageState(d, i);
-      const bar = i < stages.length - 1 ? `<div class="bar ${i < d.stageIndex ? 'fill' : ''}"></div>` : "";
-      const icon = st === "done" ? "✓" : (i + 1);
-      return `<div class="step ${st}"><div class="dot">${icon}</div><div class="nm">${escHtml(s.name)}</div></div>${bar}`;
-    }).join("");
+    // Stepper — 根据阶段数量均匀分行，每行最多5个
+    const MAX_PER_ROW = 5;
+    const totalStages = stages.length;
+    // 计算每行数量：尽量均匀分配
+    const rows = Math.ceil(totalStages / MAX_PER_ROW);
+    const perRow = Math.ceil(totalStages / rows); // 每行实际数量
+    let stepperHTML = '';
+    for (let r = 0; r < rows; r++) {
+      const start = r * perRow;
+      const end = Math.min(start + perRow, totalStages);
+      const rowStages = stages.slice(start, end);
+      const rowHTML = rowStages.map((s, i) => {
+        const idx = start + i;
+        const st = stageState(d, idx);
+        const icon = st === 'done' ? '✓' : (idx + 1);
+        const bar = i < rowStages.length - 1
+          ? `<div class="bar ${idx < d.stageIndex ? 'fill' : ''}"></div>` : '';
+        return `<div class="step ${st}"><div class="dot">${icon}</div><div class="nm">${escHtml(s.name)}</div></div>${bar}`;
+      }).join('');
+      stepperHTML += `<div class="stepper-row">${rowHTML}</div>`;
+    }
 
     // Only show current stage note on card
     const curStage = stages[d.stageIndex];
@@ -678,7 +695,7 @@ function renderGrid() {
         <span>甲方 <b>${escHtml(pa)}</b></span><span>乙方 <b>${escHtml(pb)}</b></span>
         <span>金额 <b>${fmtMoney(d.amount)}</b></span><span>负责人 <b>${escHtml(d.owner)}</b></span>
       </div>
-      <div class="stepper">${steps}</div>
+      <div class="stepper">${stepperHTML}</div>
       ${remarkHTML}
       ${noteHTML}
       ${msHTML}
