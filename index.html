@@ -508,21 +508,28 @@ async function loadFromServer() {
   }
 }
 /* ────── 保存（服务器 + 本地双写） ────── */
-function save() {
+async function save() {
   // 始终保存一份到本机浏览器（离线兜底）
   localStorage.setItem(STORE_KEY, JSON.stringify(data));
-  // 异步同步到服务器（不阻塞界面）
-  fetch(API_BASE + "/api/contracts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data })
-  }).then(res => {
-    if (res.ok) { serverConnected = true; updateConnBadge(); }
-    else throw new Error("HTTP " + res.status);
-  }).catch(e => {
-    console.warn("⚠️ 同步到服务器失败，已保存到本机:", e.message);
+  // 同步到服务器（等待结果，确保数据真正落盘）
+  try {
+    const res = await fetch(API_BASE + "/api/contracts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data })
+    });
+    if (res.ok) {
+      serverConnected = true; updateConnBadge();
+      lastServerHash = JSON.stringify(data); // 避免下次轮询重复刷新自己
+      console.log("💾 已同步到服务器:", data.length, "条合同");
+      return true;
+    }
+    throw new Error("HTTP " + res.status);
+  } catch(e) {
+    console.warn("⚠️ 同步到服务器失败，仅保存在本机:", e.message);
     serverConnected = false; updateConnBadge();
-  });
+    return false;
+  }
 }
 
 let filter = { cat: "全部", stage: "", q: "" };
@@ -709,7 +716,7 @@ function renderGrid() {
 $("#newBtn").onclick = () => $("#modal").classList.add("show");
 document.querySelectorAll("[data-close=modal]").forEach(b => b.onclick = () => $("#modal").classList.remove("show"));
 $("#modal").onclick = e => { if (e.target === $("#modal")) $("#modal").classList.remove("show"); };
-$("#createBtn").onclick = () => {
+$("#createBtn").onclick = async () => {
   const name = $("#f_name").value.trim(), partyA = $("#f_partyA").value.trim(), partyB = $("#f_partyB").value.trim(), owner = $("#f_owner").value.trim();
   if (!name || !partyA || !partyB || !owner) { alert("请填写合同名称、甲方、乙方、负责人"); return; }
   data.unshift({
@@ -721,7 +728,8 @@ $("#createBtn").onclick = () => {
     remark: $("#f_remark").value || "",
     archive: { digital: "", paper: "" }
   });
-  save(); renderAll(); $("#modal").classList.remove("show");
+  const ok = await save(); renderAll(); $("#modal").classList.remove("show");
+  if (!ok) alert("⚠️ 保存到服务器失败！\n数据仅保存在本机，其他同事无法看到。\n请检查网络或联系管理员。");
   $("#f_name").value = ""; $("#f_partyA").value = ""; $("#f_partyB").value = ""; $("#f_owner").value = ""; $("#f_amount").value = ""; $("#f_remark").value = "";
 };
 
@@ -894,7 +902,7 @@ function openDrawer(id) {
     $("#addAttBtn").onclick = () => { syncDom(); c.attachments.push({ name: "", path: "" }); openDrawer(id); };
     document.querySelectorAll("[data-del-att]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); c.attachments.splice(+btn.dataset.delAtt, 1); openDrawer(id); }; });
 
-    $("#saveAllBtn").onclick = () => {
+    $("#saveAllBtn").onclick = async () => {
       c.partyA = ($("#e_partyA")||{}).value || ""; c.partyB = ($("#e_partyB")||{}).value || "";
       c.owner = ($("#e_owner")||{}).value || ""; c.amount = parseFloat(($("#e_amount")||{}).value) || 0;
       c.cat = ($("#e_cat")||{}).value || "进行中";
@@ -923,7 +931,9 @@ function openDrawer(id) {
       attRows.forEach(row => { c.attachments.push({ name: (row.querySelector("[data-field='name']")||{}).value||"", path: (row.querySelector("[data-field='path']")||{}).value||"" }); });
 
       c.archive.digital = ($("#e_archDigital")||{}).value || ""; c.archive.paper = ($("#e_archPaper")||{}).value || "";
-      Object.assign(d, c); ds.mode = "view"; ds.editCopy = null; save(); renderAll(); openDrawer(id);
+      Object.assign(d, c); ds.mode = "view"; ds.editCopy = null;
+      const ok = await save(); renderAll(); openDrawer(id);
+      if (!ok) alert("⚠️ 保存到服务器失败！\n数据仅保存在本机，其他同事无法看到。\n请检查网络或联系管理员。");
     };
 
     $("#cancelEditBtn").onclick = () => { ds.mode = "view"; ds.editCopy = null; openDrawer(id); };
@@ -1032,12 +1042,13 @@ function buildItemsEdit(items, prefix, namePH, pathPH) {
 /* ---- Drawer close ---- */
 let currentDrawerId = null;
 
-function deleteContractById(id) {
+async function deleteContractById(id) {
   const contract = data.find(x => x.id === id);
   if (!contract) return;
   data = data.filter(x => x.id !== id);
   delete drawerState[id];
-  save(); renderAll(); closeDrawer();
+  const ok = await save(); renderAll(); closeDrawer();
+  if (!ok) alert("⚠️ 删除操作未能同步到服务器！\n请检查网络或联系管理员。");
 }
 
 function closeDrawer() { currentDrawerId = null; $("#drawerOverlay").classList.remove("show"); $("#drawer").classList.remove("show"); }
