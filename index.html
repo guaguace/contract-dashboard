@@ -1,0 +1,1126 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>合同生命周期看板</title>
+<style>
+  :root{
+    --bg:#1E293B;
+    --bg-elev:#26334A;
+    --bg-elev2:#2B3A54;
+    --bg-input:#172033;
+    --accent:#38BDF8;
+    --accent-soft:rgba(56,189,248,0.14);
+    --accent-border:rgba(56,189,248,0.30);
+    --amber:#FFC107;
+    --green:#7BD9A0;
+    --red:#E84545;
+    --red-soft:rgba(232,69,69,0.12);
+    --text:#E8EEF5;
+    --text-2:#9FB0C3;
+    --text-3:#6B7E96;
+    --border:rgba(56,189,248,0.18);
+    --radius:14px;
+    --shadow:0 10px 30px rgba(0,0,0,0.35);
+    /* milestone type colors */
+    --ms-receive:#7BD9A0;
+    --ms-pay:#FF8C42;
+    --ms-deliver:#38BDF8;
+    --ms-invoice:#C084FC;
+    --ms-other:#9FB0C3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Sarasa Gothic SC",sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(56,189,248,0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(123,217,160,0.06), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:28px 24px 80px}
+
+  /* ---------- Header ---------- */
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+  .brand h1{font-size:26px;font-weight:700;letter-spacing:.5px;display:flex;align-items:center;gap:10px}
+  .brand h1 .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  .brand p{margin-top:6px;color:var(--text-3);font-size:13px;display:flex;align-items:center;gap:8px}
+  .brand p .tag{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-border);padding:2px 9px;border-radius:999px;font-size:11px}
+  .btn{
+    border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
+    padding:11px 18px;border-radius:10px;transition:.18s ease;display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn-primary{background:var(--accent);color:#06283b}
+  .btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border)}
+  .btn-ghost:hover{color:var(--text);border-color:var(--accent-border)}
+
+  /* ---------- KPI ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+  .kpi{background:linear-gradient(180deg,var(--bg-elev),var(--bg-elev2));border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden}
+  .kpi::after{content:"";position:absolute;right:-20px;top:-20px;width:70px;height:70px;border-radius:50%;background:var(--accent-soft);filter:blur(6px)}
+  .kpi .num{font-size:30px;font-weight:700;line-height:1}
+  .kpi .lbl{margin-top:8px;color:var(--text-2);font-size:13px}
+  .kpi.k-active .num{color:var(--accent)}
+  .kpi.k-warn .num{color:var(--amber)}
+  .kpi.k-overdue .num{color:var(--red)}
+  .kpi.k-done .num{color:var(--green)}
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:9px 13px}
+  .search input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:14px;font-family:inherit}
+  .search input::placeholder{color:var(--text-3)}
+  .search svg{flex:none}
+  .pills{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{background:var(--bg-input);border:1px solid var(--border);color:var(--text-2);padding:8px 14px;border-radius:999px;font-size:13px;cursor:pointer;transition:.15s;user-select:none}
+  .pill:hover{color:var(--text)}
+  .pill.on{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent);font-weight:600}
+  .select{background:var(--bg-input);border:1px solid var(--border);color:var(--text-2);padding:9px 12px;border-radius:10px;font-family:inherit;font-size:13px;outline:none}
+
+  /* ---------- Card Grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(370px,1fr));gap:16px}
+  .card{background:linear-gradient(180deg,var(--bg-elev),var(--bg-elev2));border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:.18s;position:relative;overflow:hidden}
+  .card:hover{transform:translateY(-3px);border-color:var(--accent-border);box-shadow:var(--shadow)}
+
+  /* card row1: title + category */
+  .card .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+  .card h3{font-size:16px;font-weight:600;line-height:1.35}
+  .cat{font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;font-weight:600;border:1px solid;flex:none}
+  .cat.active{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-border)}
+  .cat.done{color:var(--green);background:rgba(123,217,160,0.12);border-color:rgba(123,217,160,0.3)}
+
+  /* card info row: 2x2 grid */
+  .card .info-row{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;font-size:12.5px;color:var(--text-3);margin-bottom:16px}
+  .card .info-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .info-row b{color:var(--text);font-weight:600}
+
+  /* stepper */
+  .stepper{display:flex;align-items:center;margin-bottom:6px;overflow-x:auto;padding-bottom:4px}
+  .stepper::-webkit-scrollbar{height:3px}
+  .stepper::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 auto;width:44px}
+  .step .dot{width:20px;height:20px;border-radius:50%;background:var(--bg-input);border:2px solid var(--text-3);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-3);font-weight:700}
+  .step .nm{font-size:10px;color:var(--text-3);white-space:nowrap}
+  .step.done .dot{background:var(--accent);border-color:var(--accent);color:#06283b}
+  .step.done .nm{color:var(--text-2)}
+  .step.current .dot{background:var(--amber);border-color:var(--amber);color:#3a2c00;width:22px;height:22px;box-shadow:0 0 8px rgba(255,193,7,.4)}
+  .step.current .nm{color:var(--amber);font-weight:700}
+  .bar{min-width:16px;flex:1;height:2px;background:var(--bg-input);border-radius:2px}
+  .bar.fill{background:linear-gradient(90deg,var(--accent),var(--accent))}
+
+  /* current stage note on card */
+  .stage-note-line{font-size:11.5px;display:flex;align-items:center;gap:6px;overflow:hidden;color:var(--amber);margin-bottom:12px}
+  .stage-note-line .sn-dot{width:5px;height:5px;border-radius:50%;flex:none;background:var(--amber)}
+  .stage-note-line .sn-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* milestone compact chips */
+  .ms-chips{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .ms-chip{font-size:11.5px;border-radius:7px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px;border:1px solid;max-width:100%;overflow:hidden}
+  .ms-chip .ms-dot{width:6px;height:6px;border-radius:50%;flex:none}
+  .ms-chip.ok .ms-dot{opacity:0.5}
+  .ms-chip.type-deliver{color:var(--ms-deliver);background:rgba(56,189,248,0.1);border-color:rgba(56,189,248,0.25)}
+  .ms-chip.type-deliver .ms-dot{background:var(--ms-deliver)}
+  .ms-chip.type-receive{color:var(--ms-receive);background:rgba(123,217,160,0.1);border-color:rgba(123,217,160,0.25)}
+  .ms-chip.type-receive .ms-dot{background:var(--ms-receive)}
+  .ms-chip.type-pay{color:var(--ms-pay);background:rgba(255,193,7,0.1);border-color:rgba(255,193,7,0.25)}
+  .ms-chip.type-pay .ms-dot{background:var(--ms-pay)}
+  .ms-chip.type-invoice{color:var(--ms-invoice);background:rgba(192,132,252,0.1);border-color:rgba(192,132,252,0.25)}
+  .ms-chip.type-invoice .ms-dot{background:var(--ms-invoice)}
+  .ms-chip.type-other{color:var(--ms-other);background:rgba(159,176,195,0.1);border-color:rgba(159,176,195,0.25)}
+  .ms-chip.type-other .ms-dot{background:var(--ms-other)}
+  .ms-chip.ok{opacity:0.45}
+
+  /* time warnings */
+  .time-warnings{display:flex;gap:8px;flex-wrap:wrap}
+  .tw-chip{font-size:11.5px;border-radius:7px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px}
+  .tw-chip.overdue{color:#ff9090;background:var(--red-soft);border:1px solid rgba(232,69,69,0.3)}
+  .tw-chip.soon{color:var(--amber);background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.25)}
+
+  .empty{grid-column:1/-1;text-align:center;color:var(--text-3);padding:60px 0;font-size:14px}
+
+  /* ---------- Modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(6,12,22,0.62);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .overlay.show{display:flex}
+  .modal{width:100%;max-width:600px;max-height:90vh;overflow:auto;background:var(--bg-elev);border:1px solid var(--accent-border);border-radius:18px;box-shadow:var(--shadow)}
+  .modal .mhead{display:flex;justify-content:space-between;align-items:center;padding:20px 22px;border-bottom:1px solid var(--border)}
+  .modal .mhead h2{font-size:18px}
+  .modal .x{cursor:pointer;color:var(--text-3);font-size:22px;line-height:1;background:none;border:none}
+  .modal .x:hover{color:var(--text)}
+  .mbody{padding:20px 22px;display:grid;gap:14px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12.5px;color:var(--text-2)}
+  .field input,.field select,.field textarea{background:var(--bg-input);border:1px solid var(--border);border-radius:9px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent-border)}
+  .field textarea{resize:vertical;min-height:64px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .hint{background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);border-radius:10px;padding:10px 12px;font-size:12.5px;display:flex;gap:8px;align-items:center}
+  .mfoot{padding:16px 22px 22px;display:flex;justify-content:flex-end;gap:10px}
+
+  /* ---------- Drawer ---------- */
+  .drawer-overlay{position:fixed;inset:0;background:rgba(6,12,22,0.55);display:none;z-index:60}
+  .drawer-overlay.show{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:640px;max-width:94vw;background:var(--bg-elev);border-left:1px solid var(--accent-border);box-shadow:-20px 0 50px rgba(0,0,0,.4);transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);z-index:61;display:flex;flex-direction:column}
+  .drawer.show{transform:translateX(0)}
+  .drawer .dhead{padding:20px 22px;border-bottom:1px solid var(--border);background:var(--bg-elev);z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex:none}
+  .drawer .dhead .dt{font-size:11px;color:var(--accent);font-weight:600;letter-spacing:1px}
+  .drawer .dhead h2{font-size:19px;margin-top:6px}
+  .drawer .dbody{flex:1;overflow:auto;padding-bottom:80px}
+  .drawer .dfoot{flex:none;padding:14px 22px;border-top:1px solid var(--border);background:var(--bg-elev);display:flex;justify-content:flex-end;gap:10px;z-index:2}
+  .sec{padding:18px 22px;border-bottom:1px solid var(--border)}
+  .sec:last-child{border-bottom:none}
+  .sec-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .sec-header h4{margin-bottom:0;font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:8px}
+  .sec h4 .ic{width:7px;height:7px;border-radius:2px;background:var(--accent)}
+  .kv{display:grid;grid-template-columns:96px 1fr;gap:10px 14px;font-size:13.5px}
+  .kv .k{color:var(--text-3)}
+  .kv .v{color:var(--text)}
+
+  /* view mode stage items */
+  .life-view{display:flex;flex-direction:column;gap:4px}
+  .life-view .lv-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;background:var(--bg-input);border:1px solid var(--border)}
+  .life-view .lv-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--text-3);flex:none}
+  .life-view .lv-item.done .lv-dot{background:var(--accent);border-color:var(--accent)}
+  .life-view .lv-item.current .lv-dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 6px rgba(255,193,7,.35)}
+  .life-view .lv-name{font-size:13.5px;flex:0 0 auto;min-width:50px}
+  .life-view .lv-note{font-size:12px;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .life-view .lv-status{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--text-3);flex:none}
+  .life-view .lv-item.done .lv-status{color:var(--accent);border-color:var(--accent-border)}
+  .life-view .lv-item.current .lv-status{color:var(--amber);border-color:rgba(255,193,7,.4)}
+
+  /* edit mode stage rows */
+  .stage-row{display:flex;align-items:center;gap:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px}
+  .stage-row:hover{border-color:var(--accent-border)}
+  .stage-row .sdot{width:20px;height:20px;border-radius:50%;background:var(--bg-elev2);border:2px solid var(--text-3);flex:none;cursor:pointer;transition:.15s}
+  .stage-row.done .sdot{background:var(--accent);border-color:var(--accent)}
+  .stage-row.current .sdot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 8px rgba(255,193,7,.4)}
+  .stage-row .sname{background:transparent;border:none;border-bottom:1px dashed transparent;color:var(--text);font-size:13.5px;font-family:inherit;width:120px;outline:none;transition:.15s}
+  .stage-row .sname:hover{border-color:var(--border)}
+  .stage-row .sname:focus{border-color:var(--accent-border)}
+  .stage-row .snote{background:var(--bg-elev2);border:1px solid var(--border);border-radius:6px;color:var(--text-2);font-size:12px;font-family:inherit;padding:4px 8px;flex:1;min-width:100px;outline:none;transition:.15s}
+  .stage-row .snote:focus{border-color:var(--accent-border);color:var(--text)}
+  .stage-row .snote::placeholder{color:var(--text-3)}
+  .stage-row .sstatus{font-size:11px;padding:2px 8px;border-radius:999px;color:var(--text-3);border:1px solid var(--border);white-space:nowrap;cursor:pointer;flex:none}
+  .stage-row.done .sstatus{color:var(--accent);border-color:var(--accent-border)}
+  .stage-row.current .sstatus{color:var(--amber);border-color:rgba(255,193,7,.4)}
+
+  .sbtn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;font-size:13px;font-family:inherit;padding:4px 7px;line-height:1;transition:.12s;flex:none}
+  .sbtn:hover:not(:disabled){color:var(--text);border-color:var(--accent-border)}
+  .sbtn.danger:hover:not(:disabled){color:var(--red);border-color:var(--red)}
+  .sbtn:disabled{opacity:0.25;cursor:default}
+
+  /* editable section components */
+  .btn-add{background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-family:inherit;font-weight:600;transition:.12s;margin-top:10px}
+  .btn-add:hover{filter:brightness(1.1)}
+  .btn-save{background:var(--green);border:none;color:#06283b;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;transition:.12s}
+  .btn-save:hover{filter:brightness(1.08)}
+
+  .edit-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:9px;padding:8px 10px;flex-wrap:wrap}
+  .edit-row input,.edit-row select{background:var(--bg-elev2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12.5px;font-family:inherit;padding:6px 8px;outline:none}
+  .edit-row input:focus,.edit-row select:focus{border-color:var(--accent-border)}
+  .edit-row .ei-type{width:80px}
+  .edit-row .ei-date{width:120px}
+  .edit-row .ei-status{width:80px}
+  .edit-row .ei-name{width:130px}
+  .edit-row .ei-path{flex:1;min-width:160px}
+  .edit-row .ei-amount{width:100px}
+
+  .btn-icon{background:none;border:none;cursor:pointer;color:var(--text-3);font-size:16px;line-height:1;padding:4px;transition:.12s;font-family:inherit}
+  .btn-icon:hover{color:var(--red)}
+
+  .archive-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .archive-row .albl{color:var(--text-3);font-size:12.5px;width:80px;flex:none}
+  .archive-row input{flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;font-family:inherit;padding:7px 10px;outline:none;min-width:0}
+  .archive-row input:focus{border-color:var(--accent-border)}
+
+  .milestone{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .ms{background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:11px}
+  .ms .t{font-size:11px;color:var(--text-3)}
+  .ms .d{font-size:15px;font-weight:600;margin-top:5px}
+  .ms .s{font-size:11px;margin-top:5px}
+  .ms .s.ok{color:var(--green)}
+  .ms .s.wait{color:var(--amber)}
+  .ms.type-receive{border-left:3px solid var(--ms-receive)}
+  .ms.type-pay{border-left:3px solid var(--ms-pay)}
+  .ms.type-deliver{border-left:3px solid var(--ms-deliver)}
+  .ms.type-invoice{border-left:3px solid var(--ms-invoice)}
+  .ms.type-other{border-left:3px solid var(--ms-other)}
+  table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.tbl th,table.tbl td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
+  table.tbl th{color:var(--text-3);font-weight:500;font-size:11.5px}
+  .badge{font-size:10.5px;padding:2px 7px;border-radius:999px}
+  .badge.ok{color:var(--green);background:rgba(123,217,160,0.12)}
+  /* milestone cards */
+  .ms-group{margin-bottom:16px}
+  .ms-group-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .ms-group-dot{width:8px;height:8px;border-radius:2px;flex:none}
+  .ms-group-title{font-size:13px;font-weight:600;color:var(--text)}
+  .ms-group-count{font-size:11px;color:var(--text-3)}
+  .ms-cards{display:flex;flex-direction:column;gap:8px}
+  .ms-card{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:var(--bg);border:1px solid var(--border);transition:background .15s}
+  .ms-card:hover{background:var(--bg-elev)}
+  .ms-card-date{font-size:13px;font-weight:600;color:var(--text);min-width:90px;white-space:nowrap;flex:none}
+  .ms-card-amount{font-size:15px;font-weight:700;color:var(--accent);min-width:70px;white-space:nowrap;flex:none}
+  .ms-card-status{flex:none}
+  .ms-card-note{font-size:12px;color:var(--text-3);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge.wait{color:var(--amber);background:rgba(255,193,7,0.12)}
+  .path{background:var(--bg-input);border:1px dashed var(--border);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--text-2);word-break:break-all;margin-bottom:6px}
+  .path b{color:var(--text)}
+
+  @media(max-width:760px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .grid2{grid-template-columns:1fr}
+    .milestone{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1><span class="dot"></span>合同生命周期看板</h1>
+      <p><span class="tag">仅做进展跟踪</span> 不存储原件 / 附件，仅记录外部路径与当前进度</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span id="syncBadge" style="font-size:11px;padding:4px 10px;border-radius:999px;background:var(--bg-input);border:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none" title="点击手动刷新">🔄 自动同步中…</span>
+      <span id="connBadge" style="font-size:11px;padding:4px 10px;border-radius:999px;background:var(--bg-input);border:1px solid var(--border);cursor:help;white-space:nowrap" title="检查中…">⏳ 检查连接…</span>
+      <button class="btn btn-primary" id="newBtn">＋ 新建合同</button>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7E96" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="search" placeholder="搜索合同名称 / 甲方 / 乙方 / 负责人…" />
+    </div>
+    <div class="pills" id="catPills"></div>
+    <select class="select" id="stageFilter">
+      <option value="">全部生命周期阶段</option>
+    </select>
+  </div>
+
+  <section class="grid" id="grid"></section>
+</div>
+
+<!-- New Contract Modal -->
+<div class="overlay" id="modal">
+  <div class="modal">
+    <div class="mhead"><h2>新建合同</h2><button class="x" data-close="modal">×</button></div>
+    <div class="mbody">
+      <div class="hint">ℹ️ 仅跟踪进展，不存储文件。创建后可在详情中编辑生命周期、里程碑等。</div>
+      <div class="field"><label>合同名称 *</label><input id="f_name" placeholder="如：XX 年度服务采购合同" /></div>
+      <div class="grid2">
+        <div class="field"><label>甲方 *</label><input id="f_partyA" placeholder="我司全称或简称" /></div>
+        <div class="field"><label>乙方 *</label><input id="f_partyB" placeholder="对方单位名称" /></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>负责人 *</label><input id="f_owner" placeholder="跟进同事" /></div>
+        <div class="field"><label>合同金额（万元）</label><input id="f_amount" type="number" step="0.01" placeholder="0.00" /></div>
+      </div>
+      <div class="field"><label>备注</label><textarea id="f_remark" placeholder="合同备注信息（选填）" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 10px;font-size:13px;font-family:inherit;outline:none;resize:vertical;min-height:60px"></textarea></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-ghost" data-close="modal">取消</button>
+      <button class="btn btn-primary" id="createBtn">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Drawer -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<div class="drawer" id="drawer">
+  <div class="dhead">
+    <div><div class="dt" id="d_cat">进行中</div><h2 id="d_name">合同名称</h2></div>
+    <div style="display:flex;align-items:center;gap:12px">
+	      <button class="btn btn-ghost" id="drawerDeleteBtn" style="color:var(--red);border-color:rgba(232,69,69,0.3);font-size:12px;padding:6px 14px;flex:none">🗑 删除合同</button>
+      <button class="x" id="drawerClose" style="cursor:pointer;color:var(--text-3);font-size:22px;background:none;border:none;flex:none">×</button>
+    </div>
+  </div>
+  <div class="dbody" id="drawerBody"></div>
+  <div class="dfoot" id="drawerFoot" style="display:none"></div>
+</div>
+
+<script>
+const DEFAULT_STAGE_NAMES = ["拟稿","审核","审批","盖章","归档"];
+const MS_TYPES = ["收款","打款","交付","发票"];
+const MS_COLORS = { "收款":"var(--ms-receive)", "打款":"var(--ms-pay)", "交付":"var(--ms-deliver)", "发票":"var(--ms-invoice)" };
+const MS_CLASS = { "收款":"type-receive", "打款":"type-pay", "交付":"type-deliver", "发票":"type-invoice" };
+function msClass(type) { return MS_CLASS[type] || "type-other"; }
+function msColor(type) { return MS_COLORS[type] || "var(--ms-other)"; }
+const STORE_KEY = "contract_dashboard_v2";
+const STORE_KEY_V1 = "contract_dashboard_v1";
+
+/* ────── 内网共享 API 配置 ────── */
+const API_BASE = window.location.origin;  // 自动检测，同源部署
+let serverConnected = false;
+
+async function checkServer() {
+  try {
+    const res = await fetch(API_BASE + "/api/health");
+    serverConnected = res.ok;
+  } catch(e) { serverConnected = false; }
+  updateConnBadge();
+}
+function updateConnBadge() {
+  const el = document.getElementById("connBadge");
+  if (!el) return;
+  if (serverConnected) {
+    el.textContent = "● 内网共享模式";
+    el.style.color = "var(--green)";
+    el.title = "数据存储在内网服务器，所有同事共享同一份数据";
+  } else {
+    el.textContent = "○ 本机离线模式";
+    el.style.color = "var(--amber)";
+    el.title = "未连接到内网服务器，数据仅保存在本浏览器";
+  }
+}
+
+function makeDefaultStages() {
+  return DEFAULT_STAGE_NAMES.map((name, i) => ({ id: "s_" + Date.now() + "_" + i, name, note: "" }));
+}
+
+const seed_v2 = [
+  {id:1,name:"2026 年度云服务采购合同",partyA:"本公司",partyB:"腾讯云",owner:"李雷",amount:48,cat:"进行中",
+   stages:[{id:"s1_0",name:"拟稿",note:""},{id:"s1_1",name:"审核",note:""},{id:"s1_2",name:"审批",note:"对方法务对 SLA 条款有异议，待二次评审"},{id:"s1_3",name:"盖章",note:""},{id:"s1_4",name:"归档",note:""}],
+   stageIndex:2,
+   dueDelivery:"2026-08-15",duePay:"2026-09-01",
+   milestones:[{type:"收款",date:"2026-09-01",amount:24,status:"wait",note:""},{type:"打款",date:"2026-12-01",amount:24,status:"wait",note:""},{type:"交付",date:"2026-08-15",amount:0,status:"wait",note:""}],
+   remark:"",supplements:[],attachments:[{name:"采购需求说明书",path:"\\\\NAS\\合同\\2026\\云服务\\需求.docx"}],
+   archive:{digital:"\\\\NAS\\合同\\2026\\云服务\\主合同.pdf",paper:"行政档案柜 A-03 层"}},
+  {id:2,name:"官网改版设计服务合同",partyA:"本公司",partyB:"某设计工作室",owner:"韩梅梅",amount:12,cat:"进行中",
+   stages:[{id:"s2_0",name:"拟稿",note:""},{id:"s2_1",name:"审核",note:""},{id:"s2_2",name:"审批",note:""},{id:"s2_3",name:"盖章",note:""},{id:"s2_4",name:"归档",note:""}],
+   stageIndex:3,
+   dueDelivery:"2026-07-30",duePay:"",
+   milestones:[{type:"交付",date:"2026-07-30",amount:0,status:"wait",note:""},{type:"收款",date:"2026-08-10",amount:0,status:"wait",note:""}],
+   supplements:[{name:"补充协议-增加移动端",path:"\\\\NAS\\合同\\2026\\官网\\补充01.docx"}],
+   attachments:[{name:"设计报价单",path:"\\\\NAS\\合同\\2026\\官网\\报价.pdf"}],
+   archive:{digital:"",paper:""}},
+  {id:3,name:"办公场地租赁续约合同",partyA:"本公司",partyB:"某置业公司",owner:"张伟",amount:96,cat:"已完成",
+   stages:[{id:"s3_0",name:"拟稿",note:""},{id:"s3_1",name:"审核",note:""},{id:"s3_2",name:"审批",note:""},{id:"s3_3",name:"盖章",note:""},{id:"s3_4",name:"归档",note:"已归档入柜"}],
+   stageIndex:4,
+   dueDelivery:"",duePay:"2026-06-30",
+   milestones:[{type:"打款",date:"2026-03-31",amount:32,status:"ok",note:""},{type:"打款",date:"2026-06-30",amount:32,status:"ok",note:""},{type:"打款",date:"2026-09-30",amount:32,status:"wait",note:""}],
+   remark:"",supplements:[],attachments:[{name:"房产证复印件",path:"\\\\NAS\\合同\\2026\\租赁\\产证.pdf"}],
+   archive:{digital:"\\\\NAS\\合同\\2026\\租赁\\主合同.pdf",paper:"行政档案柜 B-01 层"}},
+  {id:4,name:"市场推广年度框架合同",partyA:"本公司",partyB:"某传媒公司",owner:"李雷",amount:60,cat:"进行中",
+   stages:[{id:"s4_0",name:"拟稿",note:""},{id:"s4_1",name:"审核",note:"内部预算审批未通过，需重新拆分科目"},{id:"s4_2",name:"审批",note:""},{id:"s4_3",name:"盖章",note:""},{id:"s4_4",name:"归档",note:""}],
+   stageIndex:1,
+   dueDelivery:"2026-10-01",duePay:"2026-10-15",
+   milestones:[{type:"交付",date:"2026-10-01",amount:0,status:"wait",note:""},{type:"收款",date:"2026-10-15",amount:0,status:"wait",note:""}],
+   remark:"",supplements:[],attachments:[{name:"媒介排期表",path:"\\\\NAS\\合同\\2026\\推广\\排期.xlsx"}],
+   archive:{digital:"",paper:""}},
+  {id:5,name:"核心系统运维支持合同",partyA:"本公司",partyB:"某科技公司",owner:"王芳",amount:30,cat:"已完成",
+   stages:[{id:"s5_0",name:"拟稿",note:""},{id:"s5_1",name:"审核",note:""},{id:"s5_2",name:"审批",note:""},{id:"s5_3",name:"盖章",note:""},{id:"s5_4",name:"归档",note:""}],
+   stageIndex:4,
+   dueDelivery:"",duePay:"",
+   milestones:[],supplements:[],attachments:[],
+   archive:{digital:"\\\\NAS\\合同\\2025\\运维\\主合同.pdf",paper:"行政档案柜 A-05 层"}},
+];
+
+/* ---------- Migration ---------- */
+function migrateV1toV2(old) {
+  const v2 = { ...old };
+  v2.partyA = v2.partyA || "本公司";
+  v2.partyB = v2.partyB || old.party || "";
+  if (!v2.stages && old.amount > 10000) v2.amount = parseFloat((old.amount / 10000).toFixed(4));
+  if (!v2.stages) {
+    const oldStageIdx = Math.max(0, DEFAULT_STAGE_NAMES.indexOf(old.stage || "拟稿"));
+    v2.stages = DEFAULT_STAGE_NAMES.map((name, i) => ({
+      id: "mig_" + old.id + "_" + i, name,
+      note: i === oldStageIdx && old.block ? old.block : ""
+    }));
+    v2.stageIndex = oldStageIdx;
+  }
+  // Migrate installments → milestones
+  if (v2.installments && v2.installments.length) {
+    const instMs = v2.installments.map(inst => ({
+      type: "打款",
+      date: inst.date || "",
+      amount: inst.amount > 10000 ? parseFloat((inst.amount / 10000).toFixed(4)) : (inst.amount || 0),
+      status: inst.status || "wait",
+      note: ""
+    }));
+    v2.milestones = [...(v2.milestones || []), ...instMs];
+  }
+  delete v2.installments;
+  // Migrate old milestone types
+  if (v2.milestones) {
+    v2.milestones = v2.milestones.map(m => {
+      if (m.type === "付款") return { ...m, type: "打款" };
+      return m;
+    });
+  }
+  delete v2.stage; delete v2.party; delete v2.block;
+  return v2;
+}
+
+/* ---------- Load / Save ---------- */
+let data = [];
+/* ────── 数据加载（服务器优先 → localStorage 兜底 → 种子数据） ────── */
+function loadLocal() {
+  try {
+    const s2 = localStorage.getItem(STORE_KEY);
+    if (s2) return JSON.parse(s2).map(d => { delete d.block; delete d.installments; if (d.cat === "已归档") d.cat = "已完成"; if (d.remark === undefined) d.remark = ""; if (d.milestones) d.milestones.forEach(m => { if (m.amount === undefined) m.amount = 0; if (m.note === undefined) m.note = ""; }); return d; });
+    const s1 = localStorage.getItem(STORE_KEY_V1);
+    if (s1) {
+      const v2 = JSON.parse(s1).map(migrateV1toV2);
+      localStorage.setItem(STORE_KEY, JSON.stringify(v2));
+      localStorage.removeItem(STORE_KEY_V1);
+      return v2;
+    }
+    return seed_v2.slice().map(d => { if (d.remark === undefined) d.remark = ""; return d; });
+  } catch (e) { return seed_v2.slice().map(d => { if (d.remark === undefined) d.remark = ""; return d; }); }
+}
+
+async function loadFromServer() {
+  try {
+    const res = await fetch(API_BASE + "/api/contracts");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    if (json.ok && Array.isArray(json.data)) {
+      serverConnected = true; updateConnBadge();
+      if (json.data.length > 0) return json.data;
+      // 服务器无数据 → 把本机数据推送上去（首次部署时自动初始化）
+      const local = loadLocal();
+      if (local.length > 0) {
+        console.log("📤 服务器为空，正在推送本机数据...");
+        await fetch(API_BASE + "/api/contracts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: local })
+        });
+      }
+      return local;
+    }
+    throw new Error("Invalid response");
+  } catch(e) {
+    console.warn("⚠️ 无法连接服务器，使用本地数据:", e.message);
+    serverConnected = false; updateConnBadge();
+    return loadLocal();
+  }
+}
+/* ────── 保存（服务器 + 本地双写） ────── */
+function save() {
+  // 始终保存一份到本机浏览器（离线兜底）
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  // 异步同步到服务器（不阻塞界面）
+  fetch(API_BASE + "/api/contracts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data })
+  }).then(res => {
+    if (res.ok) { serverConnected = true; updateConnBadge(); }
+    else throw new Error("HTTP " + res.status);
+  }).catch(e => {
+    console.warn("⚠️ 同步到服务器失败，已保存到本机:", e.message);
+    serverConnected = false; updateConnBadge();
+  });
+}
+
+let filter = { cat: "全部", stage: "", q: "" };
+const $ = s => document.querySelector(s);
+
+/* ---------- Auto-sync category ---------- */
+function syncCategory(d) {
+  const lastIdx = (d.stages || []).length - 1;
+  // Only auto-promote: if all stages are done, upgrade 进行中 → 已完成. Never auto-demote.
+  if (d.stageIndex >= lastIdx && d.cat === "进行中") d.cat = "已完成";
+}
+
+/* ---------- Time helpers ---------- */
+function daysFromNow(date) { if (!date) return null; return Math.ceil((new Date(date) - new Date()) / 86400000); }
+function isUrgent(date) { const d = daysFromNow(date); return d !== null && d <= 7; }
+function overdueDays(date) { const d = daysFromNow(date); return d !== null && d < 0 ? Math.abs(d) : 0; }
+
+/* ---------- KPI ---------- */
+function renderKPI() {
+  const active = data.filter(d => d.cat === "进行中").length;
+  const inFlight = data.filter(d =>
+    d.cat === "进行中" && d.stageIndex >= 0 &&
+    d.stageIndex < (d.stages || []).length - 1
+  ).length;
+  const overdue = data.filter(d => {
+    if (d.cat === "已完成") return false;
+    if (isUrgent(d.dueDelivery) || isUrgent(d.duePay)) return true;
+    return (d.milestones || []).some(m => m.status === "wait" && isUrgent(m.date));
+  }).length;
+  const done = data.filter(d => d.cat === "已完成").length;
+  const cards = [
+    { n: active, l: "进行中", c: "k-active" },
+    { n: inFlight, l: "待推进", c: "k-warn" },
+    { n: overdue, l: "已逾期", c: "k-overdue" },
+    { n: done, l: "已完成", c: "k-done" },
+  ];
+  $("#kpis").innerHTML = cards.map(k => `<div class="kpi ${k.c}"><div class="num">${k.n}</div><div class="lbl">${k.l}</div></div>`).join("");
+}
+
+/* ---------- Category pills ---------- */
+function renderPills() {
+  const cats = ["全部", "进行中", "已完成"];
+  $("#catPills").innerHTML = cats.map(c => `<div class="pill ${filter.cat === c ? 'on' : ''}" data-cat="${c}">${c}</div>`).join("");
+  document.querySelectorAll("#catPills .pill").forEach(p => p.onclick = () => { filter.cat = p.dataset.cat; renderPills(); renderGrid(); });
+}
+
+/* ---------- Stage filter ---------- */
+function renderStageFilter() {
+  const names = new Set();
+  data.forEach(d => (d.stages || []).forEach(s => names.add(s.name)));
+  const sel = $("#stageFilter"), prev = sel.value;
+  sel.innerHTML = '<option value="">全部生命周期阶段</option>' + Array.from(names).map(n => `<option value="${n}">${n}</option>`).join("");
+  sel.value = prev;
+}
+
+/* ---------- Helpers ---------- */
+function stageState(contract, idx) {
+  if (idx < contract.stageIndex) return "done";
+  if (idx === contract.stageIndex) return "current";
+  return "pending";
+}
+function fmtMoney(n) {
+  if (n === null || n === undefined || n === "" || isNaN(n)) return "—";
+  return Number(n).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " 万元";
+}
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function swap(arr, i, j) { const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+/* ---------- Card Grid ---------- */
+function renderGrid() {
+  let list = data.filter(d => {
+    if (filter.cat !== "全部" && d.cat !== filter.cat) return false;
+    if (filter.stage) {
+      const curStageName = (d.stages || [])[d.stageIndex] ? (d.stages || [])[d.stageIndex].name : "";
+      if (curStageName !== filter.stage) return false;
+    }
+    if (filter.q) {
+      const q = filter.q.toLowerCase();
+      if (!(d.name + (d.partyA || "") + (d.partyB || "") + d.owner).toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  const grid = $("#grid");
+  if (!list.length) { grid.innerHTML = `<div class="empty">没有匹配的合同，换个筛选条件或新建一条吧。</div>`; return; }
+
+  grid.innerHTML = list.map(d => {
+    const stages = d.stages || [];
+    const catClass = d.cat === "进行中" ? "active" : "done";
+    const pa = d.partyA || "—", pb = d.partyB || "—";
+
+    // Stepper
+    const steps = stages.map((s, i) => {
+      const st = stageState(d, i);
+      const bar = i < stages.length - 1 ? `<div class="bar ${i < d.stageIndex ? 'fill' : ''}"></div>` : "";
+      const icon = st === "done" ? "✓" : (i + 1);
+      return `<div class="step ${st}"><div class="dot">${icon}</div><div class="nm">${escHtml(s.name)}</div></div>${bar}`;
+    }).join("");
+
+    // Only show current stage note on card
+    const curStage = stages[d.stageIndex];
+    const noteHTML = (curStage && curStage.note && curStage.note.trim())
+      ? `<div class="stage-note-line current"><span class="sn-dot"></span><span class="sn-text">${escHtml(curStage.name)}：${escHtml(curStage.note)}</span></div>`
+      : "";
+
+    // Milestone chips — group by type with progress
+    const ms = d.milestones || [];
+    let msHTML = "";
+    if (ms.length) {
+      const msDone = ms.filter(m => m.status === "ok").length;
+      const msTotal = ms.length;
+      const groups = {};
+      ms.forEach(m => {
+        if (!groups[m.type]) groups[m.type] = [];
+        groups[m.type].push(m);
+      });
+      msHTML = `<div class="ms-chips">${Object.entries(groups).map(([type, items]) => {
+        const cls = msClass(type);
+        const doneCount = items.filter(m => m.status === "ok").length;
+        const allDone = doneCount === items.length;
+        const ok = allDone ? " ok" : "";
+        const hasAmount = items.some(m => m.amount > 0);
+        const maxShow = 2;
+        const details = items.slice(0, maxShow).map(m => {
+          let s = m.date || "—";
+          if (hasAmount && m.amount) s += ` ${fmtMoney(m.amount)}`;
+          return m.status === "ok" ? s : `<b>${s}</b>`;
+        }).join("  ");
+        const more = items.length > maxShow ? ` <span style="font-size:10px;opacity:0.5">+${items.length - maxShow}</span>` : "";
+        const progress = items.length > 1 ? ` <span style="font-size:10px;opacity:0.7">${doneCount}/${items.length}</span>` : "";
+        return `<span class="ms-chip ${cls}${ok}"><span class="ms-dot"></span>${escHtml(type)}${progress} ${details}${more}</span>`;
+      }).join("")}</div>`;
+    }
+
+    // Time warnings — any date within 7 days shows red
+    const warnings = [];
+    function addWarn(label, date) {
+      if (!isUrgent(date)) return;
+      const od = overdueDays(date);
+      const msg = od > 0 ? `⚠ ${label} 已逾期 ${od} 天` : `⚠ ${label} ${date}（临近）`;
+      warnings.push(`<span class="tw-chip overdue">${msg}</span>`);
+    }
+    addWarn("交付", d.dueDelivery);
+    addWarn("付款", d.duePay);
+    ms.forEach(m => { if (m.status === "wait") addWarn(m.type, m.date); });
+    const warnHTML = warnings.length ? `<div class="time-warnings">${warnings.join("")}</div>` : "";
+
+    // Remark line on card
+    const remarkHTML = (d.remark && d.remark.trim())
+      ? `<div class="stage-note-line" style="color:var(--text-3);margin-bottom:12px"><span class="sn-dot" style="background:var(--text-3)"></span><span class="sn-text">${escHtml(d.remark)}</span></div>`
+      : "";
+
+    return `<div class="card" data-id="${d.id}">
+      <div class="row1"><div><h3>${escHtml(d.name)}</h3></div><span class="cat ${catClass}">${d.cat}</span></div>
+      <div class="info-row">
+        <span>甲方 <b>${escHtml(pa)}</b></span><span>乙方 <b>${escHtml(pb)}</b></span>
+        <span>金额 <b>${fmtMoney(d.amount)}</b></span><span>负责人 <b>${escHtml(d.owner)}</b></span>
+      </div>
+      <div class="stepper">${steps}</div>
+      ${remarkHTML}
+      ${noteHTML}
+      ${msHTML}
+      ${warnHTML}
+    </div>`;
+  }).join("");
+  document.querySelectorAll(".card").forEach(c => c.onclick = () => openDrawer(+c.dataset.id));
+}
+
+/* ---------- Modal ---------- */
+$("#newBtn").onclick = () => $("#modal").classList.add("show");
+document.querySelectorAll("[data-close=modal]").forEach(b => b.onclick = () => $("#modal").classList.remove("show"));
+$("#modal").onclick = e => { if (e.target === $("#modal")) $("#modal").classList.remove("show"); };
+$("#createBtn").onclick = () => {
+  const name = $("#f_name").value.trim(), partyA = $("#f_partyA").value.trim(), partyB = $("#f_partyB").value.trim(), owner = $("#f_owner").value.trim();
+  if (!name || !partyA || !partyB || !owner) { alert("请填写合同名称、甲方、乙方、负责人"); return; }
+  data.unshift({
+    id: Date.now(), name, partyA, partyB, owner,
+    amount: +$("#f_amount").value || 0, cat: "进行中",
+    stages: makeDefaultStages(), stageIndex: 0,
+    dueDelivery: "", duePay: "",
+    milestones: [], supplements: [], attachments: [],
+    remark: $("#f_remark").value || "",
+    archive: { digital: "", paper: "" }
+  });
+  save(); renderAll(); $("#modal").classList.remove("show");
+  $("#f_name").value = ""; $("#f_partyA").value = ""; $("#f_partyB").value = ""; $("#f_owner").value = ""; $("#f_amount").value = ""; $("#f_remark").value = "";
+};
+
+/* ========== DRAWER ========== */
+let drawerState = {};
+
+function getDrawerState(id) {
+  if (!drawerState[id]) drawerState[id] = { mode: "view", editCopy: null };
+  return drawerState[id];
+}
+
+function openDrawer(id) {
+  currentDrawerId = id;
+  const d = data.find(x => x.id === id); if (!d) return;
+  const ds = getDrawerState(id);
+  const c = ds.mode === "edit" && ds.editCopy ? ds.editCopy : d;
+  const isEdit = ds.mode === "edit";
+
+  $("#d_name").textContent = c.name;
+  const catClass = c.cat === "进行中" ? "active" : "done";
+  $("#d_cat").className = "dt " + catClass; $("#d_cat").textContent = c.cat;
+
+  let html = "";
+
+
+  // -- Basic info --
+  html += `<div class="sec"><div class="sec-header"><h4><span class="ic"></span>基本信息</h4></div><div class="kv">`;
+  if (isEdit) {
+    html += `<div class="k">甲方</div><div class="v"><input style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:13px;font-family:inherit;outline:none" id="e_partyA" value="${escHtml(c.partyA||'')}" /></div>`;
+    html += `<div class="k">乙方</div><div class="v"><input style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:13px;font-family:inherit;outline:none" id="e_partyB" value="${escHtml(c.partyB||'')}" /></div>`;
+    html += `<div class="k">负责人</div><div class="v"><input style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:13px;font-family:inherit;outline:none" id="e_owner" value="${escHtml(c.owner)}" /></div>`;
+    html += `<div class="k">金额</div><div class="v"><input type="number" step="0.01" style="width:120px;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:13px;font-family:inherit;outline:none" id="e_amount" value="${c.amount||0}" /><span style="color:var(--text-3);margin-left:6px;font-size:12px">万元</span></div>`;
+    html += `<div class="k">分类</div><div class="v"><select style="background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:13px;font-family:inherit;outline:none" id="e_cat">
+      <option value="进行中" ${c.cat==='进行中'?'selected':''}>进行中</option><option value="已完成" ${c.cat==='已完成'?'selected':''}>已完成</option></select></div>`;
+    html += `<div class="k">备注</div><div class="v"><textarea id="e_remark" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 10px;font-size:13px;font-family:inherit;outline:none;resize:vertical;min-height:60px" placeholder="合同备注信息…">${escHtml(c.remark||'')}</textarea></div>`;
+  } else {
+    html += `<div class="k">甲方</div><div class="v">${escHtml(c.partyA||"—")}</div>`;
+    html += `<div class="k">乙方</div><div class="v">${escHtml(c.partyB||"—")}</div>`;
+    html += `<div class="k">负责人</div><div class="v">${escHtml(c.owner)}</div>`;
+    html += `<div class="k">合同金额</div><div class="v">${fmtMoney(c.amount)}</div>`;
+    html += `<div class="k">分类</div><div class="v">${c.cat}</div>`;
+    html += `<div class="k">备注</div><div class="v" style="white-space:pre-wrap;line-height:1.6">${c.remark ? escHtml(c.remark) : '<span style="color:var(--text-3)">—</span>'}</div>`;
+  }
+  html += `</div>`;
+  if (!isEdit && (c.dueDelivery || c.duePay)) {
+    html += `<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">`;
+    if (c.dueDelivery) {
+      const urgent = isUrgent(c.dueDelivery);
+      html += `<span class="tw-chip ${urgent?'overdue':''}" style="font-size:12px">${urgent?'⚠':''} 交付 <b style="color:var(--text)">${c.dueDelivery}</b></span>`;
+    }
+    if (c.duePay) {
+      const urgent = isUrgent(c.duePay);
+      html += `<span class="tw-chip ${urgent?'overdue':''}" style="font-size:12px">${urgent?'⚠':''} 付款 <b style="color:var(--text)">${c.duePay}</b></span>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  // -- Lifecycle --
+  html += `<div class="sec"><div class="sec-header"><h4><span class="ic"></span>生命周期进展</h4></div>`;
+  if (isEdit) {
+    html += `<div id="lifeEdit">${buildLifecycleEdit(c)}</div><button class="btn-add" id="addStageBtn">＋ 添加阶段</button>`;
+  } else {
+    html += `<div class="life-view">${buildLifecycleView(c)}</div>`;
+  }
+  html += `</div>`;
+
+  // -- Milestones --
+  html += `<div class="sec"><div class="sec-header"><h4><span class="ic"></span>履约里程碑</h4></div>`;
+  if (isEdit) {
+    html += `<div id="msContainer">${buildMilestonesEdit(c)}</div><button class="btn-add" id="addMsBtn">＋ 添加里程碑</button>`;
+  } else {
+    html += buildMilestonesView(c);
+    // Show overdue warnings for milestones in view mode
+    const msWarnings = (c.milestones||[]).filter(m => m.status==="wait" && isUrgent(m.date));
+    if (msWarnings.length) {
+      html += `<div class="time-warnings" style="margin-top:10px">${msWarnings.map(m => {
+        const od = overdueDays(m.date);
+        const msg = od > 0 ? `⚠ ${m.type} ${m.date} 已逾期 ${od} 天` : `⚠ ${m.type} ${m.date}（临近）`;
+        return `<span class="tw-chip overdue">${msg}</span>`;
+      }).join("")}</div>`;
+    }
+  }
+  html += `</div>`;
+
+  // -- Supplements --
+  html += `<div class="sec"><div class="sec-header"><h4><span class="ic"></span>补充合同</h4></div>`;
+  if (isEdit) {
+    html += `<div id="supContainer">${buildItemsEdit(c.supplements,"sup","名称","路径")}</div><button class="btn-add" id="addSupBtn">＋ 添加</button>`;
+  } else { html += buildItemsView(c.supplements, "暂无补充合同"); }
+  html += `</div>`;
+
+  // -- Attachments --
+  html += `<div class="sec"><div class="sec-header"><h4><span class="ic"></span>附件索引</h4></div>`;
+  if (isEdit) {
+    html += `<div id="attContainer">${buildItemsEdit(c.attachments,"att","名称","路径")}</div><button class="btn-add" id="addAttBtn">＋ 添加</button>`;
+  } else { html += buildItemsView(c.attachments, "暂无附件索引"); }
+  html += `</div>`;
+
+  // -- Archive --
+  html += `<div class="sec"><div class="sec-header"><h4><span class="ic"></span>原件归档</h4></div>`;
+  if (isEdit) {
+    html += `<div class="archive-row"><span class="albl">电子版原件</span><input id="e_archDigital" value="${escHtml(c.archive.digital||'')}" placeholder="路径" /></div>
+             <div class="archive-row"><span class="albl">纸质版原件</span><input id="e_archPaper" value="${escHtml(c.archive.paper||'')}" placeholder="位置" /></div>`;
+  } else {
+    html += `<div class="kv"><div class="k">电子版原件</div><div class="v">${c.archive.digital?`<span class="path">${escHtml(c.archive.digital)}</span>`:"未登记"}</div>
+             <div class="k">纸质版原件</div><div class="v">${c.archive.paper?`<span class="path">${escHtml(c.archive.paper)}</span>`:"未登记"}</div></div>`;
+  }
+  html += `</div>`;
+
+  $("#drawerBody").innerHTML = html;
+
+  // Footer
+  if (isEdit) {
+    $("#drawerFoot").style.display = "flex";
+    $("#drawerFoot").innerHTML = `<button class="btn btn-ghost" id="cancelEditBtn">取消</button><button class="btn btn-primary" id="saveAllBtn">💾 保存全部修改</button>`;
+  } else {
+    $("#drawerFoot").style.display = "flex";
+    $("#drawerFoot").innerHTML = `<button class="btn btn-primary" id="enterEditBtn">✏️ 编辑合同</button>`;
+  }
+
+  /* ---- Events ---- */
+
+  if (!isEdit) {
+    $("#enterEditBtn").onclick = () => { ds.mode = "edit"; ds.editCopy = deepClone(d); openDrawer(id); };
+  } else {
+    // Sync DOM input values back to editCopy before any re-render
+    const syncDom = () => {
+      const msRows = document.querySelectorAll("#msContainer .edit-row");
+      if (msRows.length) {
+        c.milestones = [];
+        msRows.forEach(row => { c.milestones.push({ type: (row.querySelector("[data-field='type']")||{}).value||"", date: (row.querySelector("[data-field='date']")||{}).value||"", amount: parseFloat((row.querySelector("[data-field='amount']")||{}).value)||0, status: (row.querySelector("[data-field='status']")||{}).value||"wait", note: (row.querySelector("[data-field='note']")||{}).value||"" }); });
+      }
+      const supRows = document.querySelectorAll("#supContainer .edit-row");
+      if (supRows.length) {
+        c.supplements = [];
+        supRows.forEach(row => { c.supplements.push({ name: (row.querySelector("[data-field='name']")||{}).value||"", path: (row.querySelector("[data-field='path']")||{}).value||"" }); });
+      }
+      const attRows = document.querySelectorAll("#attContainer .edit-row");
+      if (attRows.length) {
+        c.attachments = [];
+        attRows.forEach(row => { c.attachments.push({ name: (row.querySelector("[data-field='name']")||{}).value||"", path: (row.querySelector("[data-field='path']")||{}).value||"" }); });
+      }
+      // Sync lifecycle stage edits
+      const stageRows = document.querySelectorAll("#lifeEdit .stage-row");
+      stageRows.forEach(row => {
+        const idx = +row.dataset.si;
+        const nameEl = row.querySelector("[data-field='name']");
+        const noteEl = row.querySelector("[data-field='note']");
+        if (c.stages && c.stages[idx]) {
+          if (nameEl) c.stages[idx].name = nameEl.value.trim() || c.stages[idx].name;
+          if (noteEl) c.stages[idx].note = noteEl.value.trim();
+        }
+      });
+    };
+    bindLifecycleEvents(c, id, syncDom);
+    $("#addStageBtn").onclick = () => { syncDom(); c.stages.push({ id: "s_" + Date.now(), name: "新阶段", note: "" }); openDrawer(id); };
+    $("#addMsBtn").onclick = () => { syncDom(); c.milestones.push({ type: "交付", date: "", amount: 0, status: "wait", note: "" }); openDrawer(id); };
+    document.querySelectorAll("[data-del-ms]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); c.milestones.splice(+btn.dataset.delMs, 1); openDrawer(id); }; });
+    // Custom type button
+    document.querySelectorAll("[data-custom-type]").forEach(btn => { btn.onclick = (e) => {
+      e.stopPropagation();
+      syncDom();
+      const idx = +btn.dataset.customType;
+      const v = prompt("输入自定义事项类型：", c.milestones[idx]?.type || "");
+      if (v && v.trim()) { c.milestones[idx].type = v.trim(); openDrawer(id); }
+    };});
+    $("#addSupBtn").onclick = () => { syncDom(); c.supplements.push({ name: "", path: "" }); openDrawer(id); };
+    document.querySelectorAll("[data-del-sup]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); c.supplements.splice(+btn.dataset.delSup, 1); openDrawer(id); }; });
+    $("#addAttBtn").onclick = () => { syncDom(); c.attachments.push({ name: "", path: "" }); openDrawer(id); };
+    document.querySelectorAll("[data-del-att]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); c.attachments.splice(+btn.dataset.delAtt, 1); openDrawer(id); }; });
+
+    $("#saveAllBtn").onclick = () => {
+      c.partyA = ($("#e_partyA")||{}).value || ""; c.partyB = ($("#e_partyB")||{}).value || "";
+      c.owner = ($("#e_owner")||{}).value || ""; c.amount = parseFloat(($("#e_amount")||{}).value) || 0;
+      c.cat = ($("#e_cat")||{}).value || "进行中";
+      c.remark = ($("#e_remark")||{}).value || "";
+      c.dueDelivery = ($("#e_dueDelivery")||{}).value || ""; c.duePay = ($("#e_duePay")||{}).value || "";
+
+      // Collect stage name/note edits
+      const stageRows = document.querySelectorAll("#lifeEdit .stage-row");
+      stageRows.forEach(row => {
+        const idx = +row.dataset.si;
+        const nameEl = row.querySelector("[data-field='name']");
+        const noteEl = row.querySelector("[data-field='note']");
+        if (c.stages && c.stages[idx]) {
+          if (nameEl) c.stages[idx].name = nameEl.value.trim() || c.stages[idx].name;
+          if (noteEl) c.stages[idx].note = noteEl.value.trim();
+        }
+      });
+
+      const msRows = document.querySelectorAll("#msContainer .edit-row"); c.milestones = [];
+      msRows.forEach(row => { c.milestones.push({ type: (row.querySelector("[data-field='type']")||{}).value||"", date: (row.querySelector("[data-field='date']")||{}).value||"", amount: parseFloat((row.querySelector("[data-field='amount']")||{}).value)||0, status: (row.querySelector("[data-field='status']")||{}).value||"wait", note: (row.querySelector("[data-field='note']")||{}).value||"" }); });
+
+      const supRows = document.querySelectorAll("#supContainer .edit-row"); c.supplements = [];
+      supRows.forEach(row => { c.supplements.push({ name: (row.querySelector("[data-field='name']")||{}).value||"", path: (row.querySelector("[data-field='path']")||{}).value||"" }); });
+
+      const attRows = document.querySelectorAll("#attContainer .edit-row"); c.attachments = [];
+      attRows.forEach(row => { c.attachments.push({ name: (row.querySelector("[data-field='name']")||{}).value||"", path: (row.querySelector("[data-field='path']")||{}).value||"" }); });
+
+      c.archive.digital = ($("#e_archDigital")||{}).value || ""; c.archive.paper = ($("#e_archPaper")||{}).value || "";
+      Object.assign(d, c); ds.mode = "view"; ds.editCopy = null; save(); renderAll(); openDrawer(id);
+    };
+
+    $("#cancelEditBtn").onclick = () => { ds.mode = "view"; ds.editCopy = null; openDrawer(id); };
+  }
+
+  $("#drawerOverlay").classList.add("show"); $("#drawer").classList.add("show");
+}
+
+/* ---- Lifecycle builders ---- */
+function buildLifecycleView(d) {
+  return (d.stages||[]).map((s,i) => {
+    const st = stageState(d,i);
+    const label = st==="done"?"✓":st==="current"?"进行中":"待开始";
+    return `<div class="lv-item ${st}"><div class="lv-dot"></div><span class="lv-name">${escHtml(s.name)}</span><span class="lv-status">${label}</span>${s.note?`<span class="lv-note">${escHtml(s.note)}</span>`:""}</div>`;
+  }).join("");
+}
+
+function buildLifecycleEdit(d) {
+  return (d.stages||[]).map((s,i) => {
+    const st = stageState(d,i);
+    const label = st==="done"?"已完成":st==="current"?"进行中":"待开始";
+    return `<div class="stage-row ${st}" data-si="${i}">
+      <div class="sdot" data-advance="${i}" title="切换状态"></div>
+      <input class="sname" value="${escHtml(s.name)}" data-si="${i}" data-field="name" placeholder="阶段" />
+      <span class="sstatus" data-set-current="${i}">${label}</span>
+      <input class="snote" value="${escHtml(s.note||'')}" data-si="${i}" data-field="note" placeholder="备注（如：财务部审核中）" />
+      <button class="sbtn" data-move-up="${i}" ${i===0?'disabled':''}>↑</button>
+      <button class="sbtn" data-move-down="${i}" ${i===(d.stages||[]).length-1?'disabled':''}>↓</button>
+      <button class="sbtn danger" data-delete-stage="${i}" ${(d.stages||[]).length<=1?'disabled':''}>✕</button></div>`;
+  }).join("");
+}
+
+function bindLifecycleEvents(c, id, syncDom) {
+  document.querySelectorAll("#lifeEdit .sdot").forEach(dot => { dot.onclick = () => {
+    syncDom();
+    const idx = +dot.dataset.advance;
+    if (idx < c.stageIndex) c.stageIndex = idx;
+    else if (idx === c.stageIndex) c.stageIndex = Math.min(c.stageIndex+1, (c.stages||[]).length-1);
+    else c.stageIndex = idx;
+    syncCategory(c); openDrawer(id);
+  };});
+  document.querySelectorAll("#lifeEdit .sstatus").forEach(sp => { sp.onclick = () => { syncDom(); c.stageIndex = +sp.dataset.setCurrent; syncCategory(c); openDrawer(id); }; });
+  document.querySelectorAll("#lifeEdit [data-move-up]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); const idx=+btn.dataset.moveUp; if(idx<=0)return; swap(c.stages,idx,idx-1); if(c.stageIndex===idx)c.stageIndex=idx-1; else if(c.stageIndex===idx-1)c.stageIndex=idx; openDrawer(id); };});
+  document.querySelectorAll("#lifeEdit [data-move-down]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); const idx=+btn.dataset.moveDown; if(idx>=(c.stages||[]).length-1)return; swap(c.stages,idx,idx+1); if(c.stageIndex===idx)c.stageIndex=idx+1; else if(c.stageIndex===idx+1)c.stageIndex=idx; openDrawer(id); };});
+  document.querySelectorAll("#lifeEdit [data-delete-stage]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); if((c.stages||[]).length<=1){alert("至少保留一个阶段");return;} c.stages.splice(+btn.dataset.deleteStage,1); if(c.stageIndex>=c.stages.length)c.stageIndex=c.stages.length-1; openDrawer(id); };});
+}
+
+/* ---- Milestones ---- */
+function buildMilestonesView(d) {
+  if (!d.milestones||!d.milestones.length) return `<div class="path">暂无履约里程碑</div>`;
+  // Group by type
+  const groups = {};
+  d.milestones.forEach(m => { if (!groups[m.type]) groups[m.type] = []; groups[m.type].push(m); });
+  let html = "";
+  for (const [type, items] of Object.entries(groups)) {
+    html += `<div class="ms-group">
+      <div class="ms-group-header">
+        <span class="ms-group-dot" style="background:${msColor(type)}"></span>
+        <span class="ms-group-title">${escHtml(type)}</span>
+        <span class="ms-group-count">(${items.length})</span>
+      </div>
+      <div class="ms-cards">`;
+    for (const m of items) {
+      html += `<div class="ms-card">
+        <span class="ms-card-date">${m.date||"—"}</span>
+        <span class="ms-card-amount">${m.amount ? fmtMoney(m.amount) : "—"}</span>
+        <span class="ms-card-status"><span class="badge ${m.status==='ok'?'ok':'wait'}">${m.status==='ok'?'已完成':'待办'}</span></span>
+        <span class="ms-card-note" title="${escHtml(m.note||'')}">${escHtml(m.note||"—")}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  return html;
+}
+
+function buildMilestonesEdit(d) {
+  // Collect all unique types from the contract for the dropdown
+  const allTypes = [...new Set([...MS_TYPES, ...(d.milestones||[]).map(m => m.type)])];
+  return (d.milestones||[]).map((m,i) => `
+    <div class="edit-row">
+      <span style="display:inline-flex;align-items:center;gap:4px">
+        <select class="ei-type" data-field="type" style="width:80px">
+          ${allTypes.map(t => `<option value="${t}" ${m.type===t?'selected':''}>${t}</option>`).join("")}
+        </select>
+        <button class="sbtn" data-custom-type="${i}" title="自定义类型" style="font-size:11px;padding:2px 5px">✎</button>
+      </span>
+      <input class="ei-date" type="date" value="${m.date||''}" data-field="date" />
+      <input class="ei-amount" type="number" step="0.01" value="${m.amount||0}" data-field="amount" placeholder="万元" style="width:80px" />
+      <select class="ei-status" data-field="status"><option value="wait" ${m.status==='wait'?'selected':''}>待办</option><option value="ok" ${m.status==='ok'?'selected':''}>已完成</option></select>
+      <input class="ei-path" value="${escHtml(m.note||'')}" data-field="note" placeholder="备注" style="min-width:100px" />
+      <button class="btn-icon" data-del-ms="${i}" title="删除">✕</button></div>`).join("");
+}
+
+/* ---- Items ---- */
+function buildItemsView(items, emptyText) {
+  if (!items||!items.length) return `<div class="path">${emptyText}</div>`;
+  return items.map(it => `<div class="path"><b>${escHtml(it.name)}</b><br>${escHtml(it.path||"（未填路径）")}</div>`).join("");
+}
+function buildItemsEdit(items, prefix, namePH, pathPH) {
+  return (items||[]).map((it,i) => `
+    <div class="edit-row"><input class="ei-name" value="${escHtml(it.name||'')}" data-field="name" placeholder="${namePH}" />
+      <input class="ei-path" value="${escHtml(it.path||'')}" data-field="path" placeholder="${pathPH}" />
+      <button class="btn-icon" data-del-${prefix}="${i}" title="删除">✕</button></div>`).join("");
+}
+
+/* ---- Drawer close ---- */
+let currentDrawerId = null;
+
+function deleteContractById(id) {
+  const contract = data.find(x => x.id === id);
+  if (!contract) return;
+  data = data.filter(x => x.id !== id);
+  delete drawerState[id];
+  save(); renderAll(); closeDrawer();
+}
+
+function closeDrawer() { currentDrawerId = null; $("#drawerOverlay").classList.remove("show"); $("#drawer").classList.remove("show"); }
+$("#drawerClose").onclick = closeDrawer;
+$("#drawerDeleteBtn").onclick = () => {
+  if (!currentDrawerId) return;
+  const contract = data.find(x => x.id === currentDrawerId);
+  if (!contract) return;
+  if (confirm("确定删除合同「" + contract.name + "」？此操作不可恢复。")) {
+    deleteContractById(currentDrawerId);
+  }
+};
+$("#drawerOverlay").onclick = closeDrawer;
+
+/* ---------- Search ---------- */
+$("#search").oninput = e => { filter.q = e.target.value; renderGrid(); };
+$("#stageFilter").onchange = e => { filter.stage = e.target.value; renderGrid(); };
+
+function renderAll() { renderKPI(); renderPills(); renderStageFilter(); renderGrid(); }
+
+/* ────── 自动轮询同步 ────── */
+const SYNC_INTERVAL = 8000; // 8 秒轮询一次
+let lastSyncTime = null;
+let pollingTimer = null;
+let lastServerHash = "";
+let syncCount = 0; // 用于闪烁提示
+
+function updateSyncBadge(text, color, title) {
+  const el = document.getElementById("syncBadge");
+  if (!el) return;
+  el.textContent = text;
+  if (color) el.style.color = color;
+  if (title !== undefined) el.title = title;
+}
+
+async function syncFromServer() {
+  try {
+    const res = await fetch(API_BASE + "/api/contracts?_t=" + Date.now());
+    if (!res.ok) {
+      updateSyncBadge("⚠ 服务器无响应", "var(--amber)", "HTTP " + res.status);
+      serverConnected = false; updateConnBadge();
+      return;
+    }
+    const json = await res.json();
+    if (!json.ok || !Array.isArray(json.data)) {
+      updateSyncBadge("⚠ 数据异常", "var(--amber)", "返回格式错误");
+      return;
+    }
+    serverConnected = true; updateConnBadge();
+    const newHash = JSON.stringify(json.data);
+    if (newHash !== lastServerHash) {
+      const prevHash = lastServerHash;
+      lastServerHash = newHash;
+      data = json.data;
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+      renderAll();
+      syncCount++;
+      console.log("🔄 [自动同步] 检测到数据变化，已更新界面 (#" + syncCount + ")", new Date().toLocaleTimeString("zh-CN"));
+      // 短暂闪烁绿色提示
+      updateSyncBadge("✅ 已同步 " + new Date().toLocaleTimeString("zh-CN"), "var(--green)", "检测到新数据并已更新");
+      setTimeout(function() {
+        if (lastSyncTime) updateSyncBadge("🔄 " + new Date(lastSyncTime).toLocaleTimeString("zh-CN"), "var(--green)", "自动同步中，点击手动刷新");
+      }, 2000);
+    }
+    lastSyncTime = Date.now();
+    if (!syncCount || document.getElementById("syncBadge").textContent.indexOf("✅") === -1) {
+      updateSyncBadge("🔄 " + new Date(lastSyncTime).toLocaleTimeString("zh-CN"), "var(--green)", "自动同步中，点击手动刷新\n上次同步：" + new Date(lastSyncTime).toLocaleString("zh-CN"));
+    }
+  } catch(e) {
+    console.warn("🔄 [自动同步] 失败:", e.message);
+    updateSyncBadge("⚠ 同步失败", "var(--amber)", e.message);
+    serverConnected = false; updateConnBadge();
+  }
+}
+
+function startPolling() {
+  if (pollingTimer) clearInterval(pollingTimer);
+  console.log("🔄 [自动同步] 启动轮询，间隔 " + (SYNC_INTERVAL/1000) + " 秒");
+  syncFromServer();
+  pollingTimer = setInterval(syncFromServer, SYNC_INTERVAL);
+}
+
+// 点击同步徽章手动刷新
+document.addEventListener("click", function(e) {
+  if (e.target.id === "syncBadge") {
+    updateSyncBadge("⏳ 同步中…", "var(--accent)", "正在同步…");
+    syncFromServer();
+  }
+});
+
+/* ────── 启动：加载数据 → 渲染 → 检查连接 ────── */
+(async function init() {
+  data = await loadFromServer();
+  lastServerHash = JSON.stringify(data);
+  renderAll();
+  // 不管 serverConnected 状态，一律启动轮询
+  lastSyncTime = Date.now();
+  console.log("🔄 [自动同步] 页面初始化完成，数据条目:", data.length);
+  startPolling();
+})();
+</script>
+</body>
+</html>
