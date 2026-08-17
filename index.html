@@ -105,7 +105,8 @@
   
   
   .step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 auto;width:44px}
-  .step .dot{width:20px;height:20px;border-radius:50%;background:var(--bg-input);border:2px solid var(--text-3);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-3);font-weight:700}
+  .step .dot{width:20px;height:20px;border-radius:50%;background:var(--bg-input);border:2px solid var(--text-3);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-3);font-weight:700;cursor:pointer;transition:transform .15s}
+  .step .dot:hover{transform:scale(1.25)}
   .step .nm{font-size:10px;color:var(--text-3);white-space:nowrap}
   .step.done .dot{background:var(--accent);border-color:var(--accent);color:#06283b}
   .step.done .nm{color:var(--text-2)}
@@ -185,7 +186,8 @@
   /* view mode stage items */
   .life-view{display:flex;flex-direction:column;gap:4px}
   .life-view .lv-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;background:var(--bg-input);border:1px solid var(--border)}
-  .life-view .lv-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--text-3);flex:none}
+  .life-view .lv-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--text-3);flex:none;cursor:pointer;transition:transform .15s}
+  .life-view .lv-dot:hover{transform:scale(1.2)}
   .life-view .lv-item.done .lv-dot{background:var(--accent);border-color:var(--accent)}
   .life-view .lv-item.current .lv-dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 6px rgba(255,193,7,.35)}
   .life-view .lv-name{font-size:13.5px;flex:0 0 auto;min-width:50px}
@@ -384,7 +386,24 @@ function updateConnBadge() {
 }
 
 function makeDefaultStages() {
-  return DEFAULT_STAGE_NAMES.map((name, i) => ({ id: "s_" + Date.now() + "_" + i, name, note: "" }));
+  // 新阶段默认「进行中」（黄色），点击圆点可单独标记为已完成
+  return DEFAULT_STAGE_NAMES.map((name, i) => ({ id: "s_" + Date.now() + "_" + i, name, note: "", status: "current" }));
+}
+
+/* ---------- 阶段状态归一化（老数据 stageIndex → 每阶段独立 status） ---------- */
+function normalizeStages(d) {
+  if (!Array.isArray(d.stages) || !d.stages.length) d.stages = makeDefaultStages();
+  const missingStatus = d.stages.some(s => !s.status);
+  const si = d.stageIndex === undefined ? 0 : d.stageIndex;
+  d.stages.forEach((s, i) => {
+    if (!s.status) {
+      // 已完成的合同迁移时全部标记为已完成
+      if (missingStatus && d.cat === "已完成") s.status = "done";
+      else s.status = i < si ? "done" : (i === si ? "current" : "pending");
+    }
+  });
+  syncCategory(d);
+  return d;
 }
 
 const seed_v2 = [
@@ -537,9 +556,8 @@ const $ = s => document.querySelector(s);
 
 /* ---------- Auto-sync category ---------- */
 function syncCategory(d) {
-  const lastIdx = (d.stages || []).length - 1;
   // Only auto-promote: if all stages are done, upgrade 进行中 → 已完成. Never auto-demote.
-  if (d.stageIndex >= lastIdx && d.cat === "进行中") d.cat = "已完成";
+  if (allStagesDone(d) && d.cat === "进行中") d.cat = "已完成";
 }
 
 /* ---------- Time helpers ---------- */
@@ -551,8 +569,7 @@ function overdueDays(date) { const d = daysFromNow(date); return d !== null && d
 function renderKPI() {
   const active = data.filter(d => d.cat === "进行中").length;
   const inFlight = data.filter(d =>
-    d.cat === "进行中" && d.stageIndex >= 0 &&
-    d.stageIndex < (d.stages || []).length - 1
+    d.cat === "进行中" && !allStagesDone(d)
   ).length;
   const overdue = data.filter(d => {
     if (d.cat === "已完成") return false;
@@ -586,10 +603,24 @@ function renderStageFilter() {
 }
 
 /* ---------- Helpers ---------- */
+/* 每阶段独立状态：pending 待开始 / current 进行中（黄）/ done 已完成（✓） */
 function stageState(contract, idx) {
-  if (idx < contract.stageIndex) return "done";
-  if (idx === contract.stageIndex) return "current";
-  return "pending";
+  const s = (contract.stages || [])[idx];
+  return (s && s.status) || "pending";
+}
+function toggleStageStatus(stage) {
+  if (!stage) return;
+  // 待开始 → 进行中 → 已完成 → 进行中（已完成再点击可回退，方便纠错）
+  stage.status = stage.status === "done" ? "current" : (stage.status === "current" ? "done" : "current");
+}
+function firstActiveIdx(d) {
+  const stages = d.stages || [];
+  const i = stages.findIndex(s => s.status !== "done");
+  return i === -1 ? stages.length - 1 : i;
+}
+function allStagesDone(d) {
+  const stages = d.stages || [];
+  return stages.length > 0 && stages.every(s => s.status === "done");
 }
 function fmtMoney(n) {
   if (n === null || n === undefined || n === "" || isNaN(n)) return "—";
@@ -604,7 +635,7 @@ function renderGrid() {
   let list = data.filter(d => {
     if (filter.cat !== "全部" && d.cat !== filter.cat) return false;
     if (filter.stage) {
-      const curStageName = (d.stages || [])[d.stageIndex] ? (d.stages || [])[d.stageIndex].name : "";
+      const curStageName = (d.stages || [])[firstActiveIdx(d)] ? (d.stages || [])[firstActiveIdx(d)].name : "";
       if (curStageName !== filter.stage) return false;
     }
     if (filter.q) {
@@ -636,15 +667,16 @@ function renderGrid() {
         const idx = start + i;
         const st = stageState(d, idx);
         const icon = st === 'done' ? '✓' : (idx + 1);
+        const tip = st === 'done' ? '点击回退为进行中' : (st === 'current' ? '点击标记为已完成' : '点击开始（进行中）');
         const bar = i < rowStages.length - 1
-          ? `<div class="bar ${idx < d.stageIndex ? 'fill' : ''}"></div>` : '';
-        return `<div class="step ${st}"><div class="dot">${icon}</div><div class="nm">${escHtml(s.name)}</div></div>${bar}`;
+          ? `<div class="bar ${s.status === 'done' ? 'fill' : ''}"></div>` : '';
+        return `<div class="step ${st}"><div class="dot" data-toggle-stage="${d.id}:${idx}" title="${tip}">${icon}</div><div class="nm">${escHtml(s.name)}</div></div>${bar}`;
       }).join('');
       stepperHTML += `<div class="stepper-row">${rowHTML}</div>`;
     }
 
     // Only show current stage note on card
-    const curStage = stages[d.stageIndex];
+    const curStage = stages[firstActiveIdx(d)];
     const noteHTML = (curStage && curStage.note && curStage.note.trim())
       ? `<div class="stage-note-line current"><span class="sn-dot"></span><span class="sn-text">${escHtml(curStage.name)}：${escHtml(curStage.note)}</span></div>`
       : "";
@@ -709,7 +741,21 @@ function renderGrid() {
       ${warnHTML}
     </div>`;
   }).join("");
-  document.querySelectorAll(".card").forEach(c => c.onclick = () => openDrawer(+c.dataset.id));
+  document.querySelectorAll(".card").forEach(c => c.onclick = (e) => {
+    // 点击卡片上的阶段圆点：单独切换该阶段状态并立即保存
+    const dot = e.target.closest("[data-toggle-stage]");
+    if (dot) {
+      e.stopPropagation();
+      const [cid, idx] = dot.dataset.toggleStage.split(":");
+      const contract = data.find(x => x.id === +cid);
+      if (!contract || !contract.stages[+idx]) return;
+      toggleStageStatus(contract.stages[+idx]);
+      syncCategory(contract);
+      save().then(ok => { renderAll(); if (!ok) alert("⚠️ 保存到服务器失败！\n数据仅保存在本机，其他同事无法看到。\n请检查网络或联系管理员。"); });
+      return;
+    }
+    openDrawer(+c.dataset.id);
+  });
 }
 
 /* ---------- Modal ---------- */
@@ -722,7 +768,7 @@ $("#createBtn").onclick = async () => {
   data.unshift({
     id: Date.now(), name, partyA, partyB, owner,
     amount: +$("#f_amount").value || 0, cat: "进行中",
-    stages: makeDefaultStages(), stageIndex: 0,
+    stages: makeDefaultStages(),
     dueDelivery: "", duePay: "",
     milestones: [], supplements: [], attachments: [],
     remark: $("#f_remark").value || "",
@@ -855,6 +901,16 @@ function openDrawer(id) {
 
   if (!isEdit) {
     $("#enterEditBtn").onclick = () => { ds.mode = "edit"; ds.editCopy = deepClone(d); openDrawer(id); };
+    // 查看模式下点击阶段圆点：单独切换该阶段状态并立即保存
+    document.querySelectorAll("#drawerBody [data-toggle-stage]").forEach(dot => { dot.onclick = (e) => {
+      e.stopPropagation();
+      const [cid, idx] = dot.dataset.toggleStage.split(":");
+      const contract = data.find(x => x.id === +cid);
+      if (!contract || !contract.stages[+idx]) return;
+      toggleStageStatus(contract.stages[+idx]);
+      syncCategory(contract);
+      save().then(ok => { renderAll(); openDrawer(id); if (!ok) alert("⚠️ 保存到服务器失败！\n数据仅保存在本机，其他同事无法看到。\n请检查网络或联系管理员。"); });
+    };});
   } else {
     // Sync DOM input values back to editCopy before any re-render
     const syncDom = () => {
@@ -886,7 +942,7 @@ function openDrawer(id) {
       });
     };
     bindLifecycleEvents(c, id, syncDom);
-    $("#addStageBtn").onclick = () => { syncDom(); c.stages.push({ id: "s_" + Date.now(), name: "新阶段", note: "" }); openDrawer(id); };
+    $("#addStageBtn").onclick = () => { syncDom(); c.stages.push({ id: "s_" + Date.now(), name: "新阶段", note: "", status: "current" }); openDrawer(id); };
     $("#addMsBtn").onclick = () => { syncDom(); c.milestones.push({ type: "交付", date: "", amount: 0, status: "wait", note: "" }); openDrawer(id); };
     document.querySelectorAll("[data-del-ms]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); c.milestones.splice(+btn.dataset.delMs, 1); openDrawer(id); }; });
     // Custom type button
@@ -931,6 +987,7 @@ function openDrawer(id) {
       attRows.forEach(row => { c.attachments.push({ name: (row.querySelector("[data-field='name']")||{}).value||"", path: (row.querySelector("[data-field='path']")||{}).value||"" }); });
 
       c.archive.digital = ($("#e_archDigital")||{}).value || ""; c.archive.paper = ($("#e_archPaper")||{}).value || "";
+      syncCategory(c);
       Object.assign(d, c); ds.mode = "view"; ds.editCopy = null;
       const ok = await save(); renderAll(); openDrawer(id);
       if (!ok) alert("⚠️ 保存到服务器失败！\n数据仅保存在本机，其他同事无法看到。\n请检查网络或联系管理员。");
@@ -946,8 +1003,9 @@ function openDrawer(id) {
 function buildLifecycleView(d) {
   return (d.stages||[]).map((s,i) => {
     const st = stageState(d,i);
-    const label = st==="done"?"✓":st==="current"?"进行中":"待开始";
-    return `<div class="lv-item ${st}"><div class="lv-dot"></div><span class="lv-name">${escHtml(s.name)}</span><span class="lv-status">${label}</span>${s.note?`<span class="lv-note">${escHtml(s.note)}</span>`:""}</div>`;
+    const label = st==="done"?"已完成":st==="current"?"进行中":"待开始";
+    const tip = st==="done"?"点击回退为进行中":st==="current"?"点击标记为已完成":"点击开始（进行中）";
+    return `<div class="lv-item ${st}"><div class="lv-dot" data-toggle-stage="${d.id}:${i}" title="${tip}"></div><span class="lv-name">${escHtml(s.name)}</span><span class="lv-status">${label}</span>${s.note?`<span class="lv-note">${escHtml(s.note)}</span>`:""}</div>`;
   }).join("");
 }
 
@@ -955,10 +1013,11 @@ function buildLifecycleEdit(d) {
   return (d.stages||[]).map((s,i) => {
     const st = stageState(d,i);
     const label = st==="done"?"已完成":st==="current"?"进行中":"待开始";
+    const tip = st==="done"?"点击回退为进行中":st==="current"?"点击标记为已完成":"点击开始（进行中）";
     return `<div class="stage-row ${st}" data-si="${i}">
-      <div class="sdot" data-advance="${i}" title="切换状态"></div>
+      <div class="sdot" data-toggle="${i}" title="${tip}"></div>
       <input class="sname" value="${escHtml(s.name)}" data-si="${i}" data-field="name" placeholder="阶段" />
-      <span class="sstatus" data-set-current="${i}">${label}</span>
+      <span class="sstatus" data-toggle="${i}" title="点击切换状态">${label}</span>
       <input class="snote" value="${escHtml(s.note||'')}" data-si="${i}" data-field="note" placeholder="备注（如：财务部审核中）" />
       <button class="sbtn" data-move-up="${i}" ${i===0?'disabled':''}>↑</button>
       <button class="sbtn" data-move-down="${i}" ${i===(d.stages||[]).length-1?'disabled':''}>↓</button>
@@ -967,18 +1026,15 @@ function buildLifecycleEdit(d) {
 }
 
 function bindLifecycleEvents(c, id, syncDom) {
-  document.querySelectorAll("#lifeEdit .sdot").forEach(dot => { dot.onclick = () => {
+  // 点击圆点或状态标签：单独切换该阶段状态（待开始→进行中→已完成→进行中）
+  document.querySelectorAll("#lifeEdit [data-toggle]").forEach(el => { el.onclick = () => {
     syncDom();
-    const idx = +dot.dataset.advance;
-    if (idx < c.stageIndex) c.stageIndex = idx;
-    else if (idx === c.stageIndex) c.stageIndex = Math.min(c.stageIndex+1, (c.stages||[]).length-1);
-    else c.stageIndex = idx;
-    syncCategory(c); openDrawer(id);
+    const idx = +el.dataset.toggle;
+    if (c.stages && c.stages[idx]) { toggleStageStatus(c.stages[idx]); syncCategory(c); openDrawer(id); }
   };});
-  document.querySelectorAll("#lifeEdit .sstatus").forEach(sp => { sp.onclick = () => { syncDom(); c.stageIndex = +sp.dataset.setCurrent; syncCategory(c); openDrawer(id); }; });
-  document.querySelectorAll("#lifeEdit [data-move-up]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); const idx=+btn.dataset.moveUp; if(idx<=0)return; swap(c.stages,idx,idx-1); if(c.stageIndex===idx)c.stageIndex=idx-1; else if(c.stageIndex===idx-1)c.stageIndex=idx; openDrawer(id); };});
-  document.querySelectorAll("#lifeEdit [data-move-down]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); const idx=+btn.dataset.moveDown; if(idx>=(c.stages||[]).length-1)return; swap(c.stages,idx,idx+1); if(c.stageIndex===idx)c.stageIndex=idx+1; else if(c.stageIndex===idx+1)c.stageIndex=idx; openDrawer(id); };});
-  document.querySelectorAll("#lifeEdit [data-delete-stage]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); if((c.stages||[]).length<=1){alert("至少保留一个阶段");return;} c.stages.splice(+btn.dataset.deleteStage,1); if(c.stageIndex>=c.stages.length)c.stageIndex=c.stages.length-1; openDrawer(id); };});
+  document.querySelectorAll("#lifeEdit [data-move-up]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); const idx=+btn.dataset.moveUp; if(idx<=0)return; swap(c.stages,idx,idx-1); openDrawer(id); };});
+  document.querySelectorAll("#lifeEdit [data-move-down]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); const idx=+btn.dataset.moveDown; if(idx>=(c.stages||[]).length-1)return; swap(c.stages,idx,idx+1); openDrawer(id); };});
+  document.querySelectorAll("#lifeEdit [data-delete-stage]").forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); syncDom(); if((c.stages||[]).length<=1){alert("至少保留一个阶段");return;} c.stages.splice(+btn.dataset.deleteStage,1); openDrawer(id); };});
 }
 
 /* ---- Milestones ---- */
@@ -1103,6 +1159,7 @@ async function syncFromServer() {
       const prevHash = lastServerHash;
       lastServerHash = newHash;
       data = json.data;
+      data.forEach(normalizeStages);
       localStorage.setItem(STORE_KEY, JSON.stringify(data));
       renderAll();
       syncCount++;
@@ -1142,6 +1199,7 @@ document.addEventListener("click", function(e) {
 /* ────── 启动：加载数据 → 渲染 → 检查连接 ────── */
 (async function init() {
   data = await loadFromServer();
+  data.forEach(normalizeStages);
   lastServerHash = JSON.stringify(data);
   renderAll();
   // 不管 serverConnected 状态，一律启动轮询
